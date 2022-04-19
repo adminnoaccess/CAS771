@@ -3,7 +3,7 @@
 ### 1. Download the whole repository as a zip file
 ### 2. Unzip in local and change the corresponding data_path in main.py
 ### 3. Install all of the library packages
-### 4. Run the model on cifar10 task1 by input python main.py --dataset cifar10 --task task1 --n_epoch 50 --CNN deep on command line. To edit other parameters from default, add arguments on command line or edit default arguments directly in main.py
+### 4. Run the model on cifar10 task1 by inputing python main.py --dataset cifar10 --task task1 --n_epoch 50 --CNN deep on command line. To edit other parameters from default, add arguments on command line or edit default arguments directly in main.py
 ## Description
 ### 1. loader_for_ANIMAL10n.py and loader_for_CIFAR.py loads data of cifar10 and animal10n respectively
 ### 2. loss.py contains the algorithm for loss function
