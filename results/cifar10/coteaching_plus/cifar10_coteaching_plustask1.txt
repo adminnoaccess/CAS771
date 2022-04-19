@@ -1,0 +1,4 @@
+epoch train_acc1 train_acc2 test_acc1 test_acc2 pure_ratio1 pure_ratio2
+epoch train_acc1 train_acc2 test_acc1 test_acc2 pure_ratio1 pure_ratio2
+0: 0 0 10.02 10.38 0 0
+1 28.093430306905372 28.133791560102303 50.72 49.54 65.48613023804845 65.48408420224281
