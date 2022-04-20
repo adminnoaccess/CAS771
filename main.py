@@ -21,24 +21,21 @@ torch.cuda.empty_cache()
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--lr', type = float, default = 0.001)
-parser.add_argument('--noise_rate', type = float, help = 'corruption rate, should be less than 1', default = 0.2)
-parser.add_argument('--forget_rate', type = float, help = 'forget rate', default = None)
-parser.add_argument('--noise_type', type = str, help='[pairflip, symmetric]', default='symmetric')
-parser.add_argument('--num_gradual', type = int, default = 10, help='how many epochs for linear drop rate. This parameter is equal to Ek for lambda(E) in the paper.')
-parser.add_argument('--exponent', type = float, default = 1, help='exponent of the forget rate, can be 0.5, 1, 2. This parameter is equal to c in Tc for R(T) in Co-teaching paper.')
+parser.add_argument('--lr_decay_epoch', type=int, default=30)
+parser.add_argument('--forget_rate_factor', type = float, help = '1.0, 1.25, 1.5; forget rate = noise rate * forget rate factor', default = 1.0)
+parser.add_argument('--Tk', type = int, help='10, 15, 20; how many epochs for linear drop rate. Tk for lambda(E) in the algorithm.', default = 10)
 parser.add_argument('--top_bn', action='store_true')
 parser.add_argument('--dataset', type = str, help = 'cifar10, cifar100, or animal10n', default = 'cifar10')
 parser.add_argument('--task', type = str, help = 'task1, task2, or task3', default = 'task1')
-parser.add_argument('--n_epoch', type=int, default=50)
+parser.add_argument('--n_epoch', type=int, default = 50)
 parser.add_argument('--CNN', type = str, help = 'deep or shallow', default = 'deep')
 parser.add_argument('--seed', type=int, default=1)
 parser.add_argument('--print_freq', type=int, default=50)
-parser.add_argument('--num_workers', type=int, default=4, help='how many subprocesses to use for data loading')
 parser.add_argument('--num_iter_per_epoch', type=int, default=400)
-parser.add_argument('--epoch_decay_start', type=int, default=30)
+
 
 parser.add_argument('--optimizer', type = str, default='adam')
-parser.add_argument('--model_type', type = str, help='[triteaching, triteachingplus]', default='triteaching')
+parser.add_argument('--model_type', type = str, help='triteaching, triteachingplus', default='triteachingplus')
 
 
 args = parser.parse_args()
@@ -50,7 +47,7 @@ torch.cuda.manual_seed(args.seed)
 # Hyper Parameters
 batch_size = 128
 learning_rate = args.lr 
-
+lr_decay_epoch = args.lr_decay_epoch
     
 if args.dataset=='cifar100':
     input_channel=3
@@ -84,6 +81,8 @@ if args.dataset == 'cifar10':
     test_loader = loader.run('test')
     print("\n>>>>>>  Noisy labels are loaded into data\n")
     # print('loaded noisy rate:', noise_or_not2)
+    noise_rate = (50000-noise_or_not2.sum())/50000
+    print('Actual noise rate: ', noise_rate)
 
 # animal 10n dataloader
 if args.dataset == 'animal10n':
@@ -98,12 +97,15 @@ if args.dataset == 'animal10n':
     noise_or_not2 = np.ones(50000, dtype=bool)
     print('noise or not2: ', noise_or_not2)
     print('number of True in noise or not2', noise_or_not2.sum())
+    noise_rate = 0.08
+    print('Actual noise rate: ', noise_rate)
 
-
-if args.forget_rate is None:
-    forget_rate=args.noise_rate
+if args.dataset == 'cifar10':
+    forget_rate = noise_rate*args.forget_rate_factor
+elif args.dataset == 'animal10n':
+    forget_rate = noise_rate*args.forget_rate_factor
 else:
-    forget_rate=args.forget_rate
+    forget_rate = 0.2*args.forget_rate_factor
 
 
 # define learning rate
@@ -112,8 +114,8 @@ beta_adjust = 0.1
 # array with n_epoch elements of value learning_rate
 alpha_plan = [learning_rate] * args.n_epoch
 beta1_plan = [beta_initial] * args.n_epoch
-for i in range(args.epoch_decay_start, args.n_epoch):
-    alpha_plan[i] = float(args.n_epoch - i) / (args.n_epoch - args.epoch_decay_start) * learning_rate
+for i in range(lr_decay_epoch, args.n_epoch):
+    alpha_plan[i] = float(args.n_epoch - i) / (args.n_epoch - lr_decay_epoch) * learning_rate
     beta1_plan[i] = beta_adjust
 print("lr alpha plan: ", alpha_plan)
 print("beta plan: ", beta1_plan)
@@ -125,14 +127,14 @@ def adjust_learning_rate(optimizer, epoch):
        
 # define drop rate schedule
 rate_schedule = np.ones(args.n_epoch)*forget_rate
-rate_schedule[:args.num_gradual] = np.linspace(0, forget_rate, args.num_gradual)
+rate_schedule[:args.Tk] = np.linspace(0, forget_rate, args.Tk)
          
 # define result saving
 save_dir = 'results/' +args.dataset+'/' + args.model_type + '/'
 print('save dir: ', save_dir) 
 if not os.path.exists(save_dir):
     os.mkdir(save_dir)
-model_str=args.dataset+'_' + args.model_type + '_' + args.CNN + '_'+ args.task + '_'+ str(args.n_epoch)
+model_str=args.dataset+'_' + args.model_type + '_' + args.CNN + '_'+ args.task + '_'+ str(args.n_epoch)+ '_Tk' + str(args.Tk) + '_frfactor' + str(args.forget_rate_factor)
 txtfile = save_dir + "/" + model_str + ".txt"
 
 
@@ -326,11 +328,13 @@ def main():
         adjust_learning_rate(optimizer1, epoch)
         adjust_learning_rate(optimizer2, epoch)
         adjust_learning_rate(optimizer3, epoch)
+
         print('current lr: ', alpha_plan[epoch])
         print('current beta: ', beta1_plan[epoch])
+        print('current forget rate: ', rate_schedule[epoch])
+        print('current remember rate: ', 1-rate_schedule[epoch])
+
         # train the models
-        print('forget rate: ', rate_schedule[epoch])
-        print('remember rate: ', 1-rate_schedule[epoch])
         train_acc1, train_acc2, train_acc3, pure_ratio_1_list, pure_ratio_2_list, pure_ratio_3_list = train(train_loader, epoch, clf1, optimizer1, clf2, optimizer2, clf3, optimizer3)
         # test models
         test_acc1, test_acc2, test_acc3 =evaluate(test_loader, clf1, clf2, clf3)
