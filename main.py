@@ -22,7 +22,7 @@ torch.cuda.empty_cache()
 parser = argparse.ArgumentParser()
 parser.add_argument('--lr', type = float, default = 0.001)
 parser.add_argument('--lr_decay_epoch', type=int, default=30)
-parser.add_argument('--forget_rate_factor', type = float, help = '1.0, 1.25, 1.5; forget rate = noise rate * forget rate factor', default = 1.0)
+parser.add_argument('--forget_rate_factor', type = float, help = '1.0, 1.25, 1.5; forget rate = noise rate * forget rate factor. ϵ in the algorithm', default = 1.0)
 parser.add_argument('--Tk', type = int, help='10, 15, 20; how many epochs for linear drop rate. Tk for lambda(E) in the algorithm.', default = 10)
 parser.add_argument('--top_bn', action='store_true')
 parser.add_argument('--dataset', type = str, help = 'cifar10, cifar100, or animal10n', default = 'cifar10')
@@ -31,12 +31,10 @@ parser.add_argument('--n_epoch', type=int, default = 50)
 parser.add_argument('--CNN', type = str, help = 'deep or shallow', default = 'deep')
 parser.add_argument('--seed', type=int, default=1)
 parser.add_argument('--print_freq', type=int, default=50)
-parser.add_argument('--num_iter_per_epoch', type=int, default=400)
 
 
 parser.add_argument('--optimizer', type = str, default='adam')
 parser.add_argument('--model_type', type = str, help='triteaching, triteachingplus', default='triteachingplus')
-
 
 args = parser.parse_args()
 
@@ -289,8 +287,6 @@ def main():
         clf1 = CNN(num_classes)
         clf2 = CNN(num_classes)
         clf3 = CNN(num_classes)
-
-
     
     clf1.cuda()
     optimizer1 = torch.optim.Adam(clf1.parameters(), lr=learning_rate)  
